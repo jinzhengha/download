@@ -1,0 +1,431 @@
+package com.cwgj.fee.main.activity;
+
+import android.Manifest;
+import android.annotation.SuppressLint;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.os.Bundle;
+import android.os.Vibrator;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentPagerAdapter;
+import android.support.v4.view.ViewPager;
+import android.text.TextUtils;
+import android.view.View;
+
+import com.alibaba.android.arouter.facade.annotation.Route;
+import com.alibaba.android.arouter.launcher.ARouter;
+import com.andsync.xpermission.XPermissionUtils;
+import com.cwgj.busineeslib.activity.MemoryCameraActivity;
+import com.cwgj.busineeslib.base.BaseActivity;
+import com.cwgj.busineeslib.managers.AlarManagerHelper;
+import com.cwgj.busineeslib.managers.AppManager;
+import com.cwgj.busineeslib.managers.AppUpdateManager;
+import com.cwgj.busineeslib.managers.FloatViewManager;
+import com.cwgj.busineeslib.managers.NotificationUtil;
+import com.cwgj.busineeslib.managers.SoundHelper;
+import com.cwgj.busineeslib.managers.UploadPicManager;
+import com.cwgj.busineeslib.managers.db.dao.UploadPicDao;
+import com.cwgj.busineeslib.network.bean.UpdateInfo;
+import com.cwgj.busineeslib.network.bean.UploadPicEntity;
+import com.cwgj.busineeslib.service.LocalAliveService;
+import com.cwgj.busineeslib.utils.consts.Constance;
+import com.cwgj.busineeslib.utils.consts.GlobalPrams;
+import com.cwgj.busineeslib.utils.consts.LoginInfo;
+import com.cwgj.busineeslib.utils.consts.UserData;
+import com.cwgj.busineeslib.utils.rxbusevent.FloatViewStatuesEvent;
+import com.cwgj.busineeslib.utils.rxbusevent.UpdateUploadPictureEvent;
+import com.cwgj.busineeslib.views.CommonDialog;
+import com.cwgj.fee.main.R;
+import com.cwgj.lib.utils.ArouterNaviCallback;
+import com.cwgj.lib.utils.DataFormatUtil;
+import com.cwgj.lib.utils.DateUtils;
+import com.cwgj.lib.utils.StringUtils;
+import com.cwgj.lib.utils.Tags;
+import com.cwgj.lib.utils.ToastUtils;
+import com.cwgj.lib.utils.UiUtil;
+import com.cwgj.lib.utils.Util;
+import com.cwgj.lib.utils.permission.PermisionUtil;
+import com.cwgj.lib.views.BottomTabItem;
+import com.cwgj.lib.views.BottomTabItemWithCircle;
+import com.cwgj.lib.views.NavigationBar;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import rxbus.ecaray.com.rxbuslib.rxbus.RxBus;
+import rxbus.ecaray.com.rxbuslib.rxbus.RxBusReact;
+
+import static com.cwgj.busineeslib.utils.consts.Constance.PARK_FEE_IN_PARK_CAR_FRAGMRNT;
+import static com.cwgj.busineeslib.utils.consts.Constance.PARK_FEE_MAIN_MAINACTIVITY;
+import static com.cwgj.busineeslib.utils.consts.Constance.PARK_FEE_SETTING_FRAGMENT;
+import static com.cwgj.busineeslib.utils.consts.Constance.PARK_FEE_TOTAL_DATA_HOME_PAGEFRAGMENT;
+
+/**
+ * +----------------------------------------------------------------------
+ * |  说明     ： 主页面
+ * +----------------------------------------------------------------------
+ * | 创建者   :  kim_tony
+ * +----------------------------------------------------------------------
+ * | 时　　间 ：2017/9/4 16:18
+ * +----------------------------------------------------------------------
+ * | 版权所有: 北京市车位管家科技有限公司
+ * +----------------------------------------------------------------------
+ **/
+@Route(path = PARK_FEE_MAIN_MAINACTIVITY)
+public class FeeMainActivity extends BaseActivity implements ViewPager.OnPageChangeListener, View.OnClickListener {
+    private static final int MAX_RING_TIME = 60;  //轮询周期（秒）
+    private ViewPager viewpage;
+    private long mExitTime;
+
+    private FragmentPagerAdapter mAdapter;
+    private List<Fragment> mFragments = new ArrayList<>();  //片段集合
+    //巡逻
+    private Timer timer;
+    private TimerTask timerTask;   //巡逻提醒
+    private CommonDialog mDialogPatrolRemind; //巡逻dialog
+    private Vibrator vibrator;
+    private long[] pattern;
+    private String TAG = "FeeMainActivity";
+    private int ALARM_INIT_FAST_IN_PARK_TIME = 5000;
+    private ArrayList<BottomTabItem> mTabItems = new ArrayList<>(); //底部tab集合
+
+    @Override
+    public void initView() {
+        FloatViewManager.showFloatView();
+        getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        mTabItems.add((BottomTabItem) UiUtil.findViewById(this, R.id.tab_home));
+        mTabItems.add((BottomTabItem) UiUtil.findViewById(this, R.id.tab_in_park));
+        mTabItems.add((BottomTabItemWithCircle) UiUtil.findViewById(this, R.id.tab_self));
+        viewpage = UiUtil.findViewById(this, R.id.viewpager_main);
+        showNavi(false);
+        checkPermision();
+        initTabIndicator();
+//        initTimer();
+        AlarManagerHelper.initFastInParkAlarmManager();
+        checkUpdata();
+        UploadPicManager.getInstance().uploadPicsAsynSilently();
+        AlarManagerHelper.initNotifyAlarmManager();
+        startService(new Intent(this, LocalAliveService.class));
+        AlarManagerHelper.initOSSTokenAlarmManager(true);
+        AlarManagerHelper.initUploadPicAlarmManager();
+
+        showRedCircle();
+    }
+
+    @Override
+    protected void initListener() {
+        RxBus.getDefault().register(this);
+        mTabItems.get(0).setOnClickListener(this);
+        mTabItems.get(1).setOnClickListener(this);
+        mTabItems.get(2).setOnClickListener(this);
+        navi.setClickCallback(new NavigationBar.ClickCallback() {
+            @Override
+            public void onBackClick() {
+                finish();
+            }
+
+            @Override
+            public void onRightClick() {
+                Bundle bundle = new Bundle();
+                bundle.putString("message", "message");
+                int requestCode = 1000;
+                UpdateInfo updateInfo = new UpdateInfo();
+                updateInfo.msg = "升级了";
+                ARouter.getInstance().build(Constance.PARK_MN_BALANCE_MAINACTIVITY).
+                        withString("name", "xxxxxxxxxxxxxxxxxxxxxx").
+                        withSerializable("info", updateInfo).
+                        withTransition(R.anim.slide_in_left, R.anim.slide_out_right).
+                        withBundle("mykey", bundle).navigation(FeeMainActivity.this,
+                        requestCode, new ArouterNaviCallback());
+            }
+        });
+        viewpage.addOnPageChangeListener(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkUserInfoRecycle();
+        SoundHelper.getDefault().initSound();
+        stopMedia();
+        NotificationUtil.cancelAll();
+    }
+
+    @Override
+    protected void onDestroy() {
+        getWindow().getDecorView().removeCallbacks(mFastInParkRunnable);
+        releaseTimer();
+        stopMedia();
+        NotificationUtil.cancelAll();
+        RxBus.getDefault().unregister(this);
+        FloatViewManager.removeFloatView();
+        super.onDestroy();
+    }
+
+    //初始化巡逻时间表
+    private void initTimer() {
+        releaseTimer();
+        timer = new Timer();
+        timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (UserData.getInstance().isNeedCheck()) {
+                            String content = String.format(Locale.getDefault(), getString(R.string.do_patrol), DateUtils.commonDateFormat(GlobalPrams.getServerTimeL(), "HH:mm"));
+                            if (Util.isAppForeground(GlobalPrams.parkApp)) {
+                                showCheckAlert(content);
+                            } else {
+                                SoundHelper.getDefault().initRingSoundBack();
+                                NotificationUtil.sendPatrolNotification(content);
+                            }
+                        }
+                    }
+                });
+
+            }
+        };
+        timer.schedule(timerTask, 0, 1000 * MAX_RING_TIME);
+
+    }
+
+    //提示巡逻任务
+    private void showCheckAlert(String content) {
+        if (mDialogPatrolRemind == null) {
+            mDialogPatrolRemind = new CommonDialog(this, content) {
+                @Override
+                public void rightBtnClick() {
+
+                }
+            };
+            mDialogPatrolRemind.setOnDismissListener(new DialogInterface.OnDismissListener() {
+                @Override
+                public void onDismiss(DialogInterface dialogInterface) {
+                    stopMedia();
+                }
+            });
+        }
+        mDialogPatrolRemind.show();
+        mDialogPatrolRemind.setPositiveBtnText(getString(R.string.i_know));
+        mDialogPatrolRemind.setNagativeBtnGone();
+        setMedia();
+    }
+
+    //停止震动和声音
+    @SuppressLint("MissingPermission")
+    private void stopMedia() {
+        if (vibrator != null)
+            vibrator.cancel();
+        SoundHelper.getDefault().stop();
+        SoundHelper.getDefault().resetSound();
+
+    }
+
+    //设置震动 音效
+    @SuppressLint("MissingPermission")
+    private void setMedia() {
+    /*
+* 想设置震动大小可以通过改变pattern来设定，如果开启时间太短，震动效果可能感觉不到
+* */
+        if (vibrator == null) {
+            vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            // 停止 开启 停止 开启
+            pattern = new long[]{100, 400, 100, 400};
+
+        }
+        vibrator.vibrate(60 * 1000);           //重复两次上面的pattern 如果只想震动一
+        SoundHelper.getDefault().initRingSound(); //播放声音
+        SoundHelper.getDefault().playByLoop();//
+
+    }
+
+    private void releaseTimer() {
+        if (timer != null) timer.cancel();
+        timer = null;
+        if (timerTask != null) timerTask.cancel();
+        timerTask = null;
+    }
+
+
+    private void checkUpdata() {
+        getWindow().getDecorView().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                AppUpdateManager.getInstance().beginUpdata(false);
+            }
+        }, 1000);
+    }
+
+
+    @Override
+    public void initData() {
+    }
+
+    /***************************************************
+     * 方法描述 ：初始化底部
+     * 方法名  :  initTabIndicator
+     **************************************************/
+    private void initTabIndicator() {
+        Fragment dataFragment = (Fragment) ARouter.getInstance().build(PARK_FEE_TOTAL_DATA_HOME_PAGEFRAGMENT).navigation();
+        Fragment inParkFragment = (Fragment) ARouter.getInstance().build(PARK_FEE_IN_PARK_CAR_FRAGMRNT).navigation();
+        Fragment settingFragment = (Fragment) ARouter.getInstance().build(PARK_FEE_SETTING_FRAGMENT).navigation();
+        mFragments.add(dataFragment);
+        mFragments.add(inParkFragment);
+        mFragments.add(settingFragment);
+
+        mAdapter = new FragmentPagerAdapter(getSupportFragmentManager()) {
+
+            @Override
+            public int getCount() {
+                return mFragments.size();
+            }
+
+            @Override
+            public Fragment getItem(int arg0) {
+                return mFragments.get(arg0);
+            }
+
+        };
+        viewpage.setAdapter(mAdapter);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if ((System.currentTimeMillis() - mExitTime) > 2000) {
+            ToastUtils.showToastShort(StringUtils.plusString("再按一次退出", GlobalPrams.parkApp.getString(R.string.app_name)));
+            mExitTime = System.currentTimeMillis();
+        } else {
+            AppManager.getInstance().goHome();
+        }
+    }
+
+    @Override
+    public int layoutId() {
+        return R.layout.activity_fee_main;
+    }
+
+    //检测权限
+    private void checkPermision() {
+        PermisionUtil.requestPermision(FeeMainActivity.this,
+                PermisionUtil.PER_MORE,
+                new String[]{Manifest.permission.READ_PHONE_STATE,
+                        Manifest.permission.READ_EXTERNAL_STORAGE,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                        Manifest.permission.CAMERA,
+                        Manifest.permission.RECORD_AUDIO},
+                new XPermissionUtils.OnPermissionListener() {
+                    @Override
+                    public void onPermissionGranted() {
+                        getWindow().getDecorView().postDelayed(mFastInParkRunnable, ALARM_INIT_FAST_IN_PARK_TIME);
+
+                    }
+
+                    @Override
+                    public void onPermissionDenied(String[] deniedPermissions, boolean alwaysDenied) {
+                        if (alwaysDenied) {
+                            PermisionUtil.showPermissionManagerDialog
+                                    (FeeMainActivity.this, PermisionUtil.getPermissionIndroduce(deniedPermissions), new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            finish();
+                                        }
+                                    });
+                        }
+                    }
+                });
+    }
+
+    Runnable mFastInParkRunnable = new Runnable() {
+        @Override
+        public void run() {
+            AppManager.getInstance().showFastInParkCarsLeftDialog();
+        }
+    };
+
+    @Override
+    public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
+
+    }
+
+    @Override
+    public void onPageSelected(int position) {
+        for (int i = 0; i < mTabItems.size(); i++) {
+            if (i == position) {
+                mTabItems.get(i).setSelectState(true);
+            } else {
+                mTabItems.get(i).setSelectState(false);
+            }
+        }
+    }
+
+    @Override
+    public void onPageScrollStateChanged(int state) {
+
+    }
+
+    @Override
+    public void onClick(View v) {
+        int id = v.getId();
+        if (id == R.id.tab_home) {
+            viewpage.setCurrentItem(0);
+        } else if (id == R.id.tab_in_park) {
+            viewpage.setCurrentItem(1);
+        } else if (id == R.id.tab_self) {
+            viewpage.setCurrentItem(2);
+        }
+    }
+
+    @Override
+    protected void setTopColor() {
+        UiUtil.setStatusBarColor(this, R.color.bg_bar_green);
+    }
+
+    @RxBusReact(tag = Tags.RXBUS_PICTURE_MANAGER_UPDATE_CIRCLE, clazz = UpdateUploadPictureEvent.class)
+    public void showOrHidePictureCircle(UpdateUploadPictureEvent event) {
+        if (event.isClearCircle) {
+            ((BottomTabItemWithCircle) mTabItems.get(2)).setCircleState(false);
+            RxBus.getDefault().post(new UpdateUploadPictureEvent(true), Tags.RXBUS_SETTING_PICTURE_MANAGER_UPDATE_CIRCLE);
+        } else if (!event.isUploadSuccess) {
+            //图片上传失败，上传的图片id大于保存id，则显示红点
+            if ((Integer) UserData.getInstance().getSpByUserId(UserData.SP_PICTURE_INFO_ID, 0) < event.id) {
+                ((BottomTabItemWithCircle) mTabItems.get(2)).setCircleState(true);
+                UserData.getInstance().saveSpByUserId(UserData.SP_PICTURE_INFO_ID, event.id);
+                UserData.getInstance().saveSpByUserId(UserData.SP_PICTURE_INFO_READ_STATUES, false);
+                RxBus.getDefault().post(new UpdateUploadPictureEvent(false), Tags.RXBUS_SETTING_PICTURE_MANAGER_UPDATE_CIRCLE);
+            }
+        }
+    }
+
+    /***************************************************
+     * 方法描述 ：初始化显示"我"的红点
+     * 方法名  :  showRedCircle
+     **************************************************/
+    private void showRedCircle() {
+        List<UploadPicEntity.request> uploadPicList = new UploadPicDao().queryByUserId(LoginInfo.getInstance().getResLogin().userid);
+        if (DataFormatUtil.isListEmpty(uploadPicList)) {
+            ((BottomTabItemWithCircle) mTabItems.get(2)).setCircleState(false);
+            UserData.getInstance().saveSpByUserId(UserData.SP_PICTURE_INFO_READ_STATUES, true);
+        } else if ((Boolean) UserData.getInstance().getSpByUserId(UserData.SP_PICTURE_INFO_READ_STATUES, true)) {
+            ((BottomTabItemWithCircle) mTabItems.get(2)).setCircleState(false);
+        } else {
+            ((BottomTabItemWithCircle) mTabItems.get(2)).setCircleState(true);
+        }
+    }
+
+    @RxBusReact(tag = Tags.RXBUS_FLOATVIEW_STATUES,clazz =  FloatViewStatuesEvent.class)
+    public void showFloatView(FloatViewStatuesEvent event) {
+        if (event.isShow && !TextUtils.equals(event.currentClassName, MemoryCameraActivity.class.getSimpleName())) {
+             FloatViewManager.showFloatView();
+        } else {
+            FloatViewManager.hideFloatView();
+        }
+    }
+
+}

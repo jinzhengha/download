@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:background="@color/color_glay3"
+              android:orientation="vertical">
+
+
+    <com.cwgj.busineeslib.views.HorizonViewPager
+        android:id="@+id/viewpager_main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+
+        android:layout_weight="1">
+    </com.cwgj.busineeslib.views.HorizonViewPager>
+
+    <View
+        android:layout_width="match_parent"
+        android:background="@color/color_ddd"
+        android:layout_height="1px"/>
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
+
+        <com.cwgj.lib.views.BottomTabItem
+            android:id="@+id/tab_home"
+            style="@style/bottomitem"
+            app:xyzIcon="@drawable/tab_fee_home"
+            app:xyzIconHeight="@dimen/dp22"
+            app:xyzIconWidth="@dimen/dp22"
+            app:xyzSelectIcon="@drawable/tab_fee_home_press"
+            app:xyzSelectState="true"
+            app:xyzTitle="@string/out_in_park"
+            app:xyzTitleColor="@color/tab_default_text_color"
+            app:xyzTitleSelectColor="@color/main_blue"
+            app:xyzTitleSize="@dimen/sp10"
+            app:xyzTitleTop="@dimen/dp4"/>
+
+        <com.cwgj.lib.views.BottomTabItem
+            android:id="@+id/tab_in_park"
+            style="@style/bottomitem"
+            app:xyzIcon="@drawable/tab_fee_has_in_park"
+            app:xyzIconHeight="@dimen/dp22"
+            app:xyzIconWidth="@dimen/dp22"
+            app:xyzSelectIcon="@drawable/tab_fee_has_in_park_press"
+            app:xyzSelectState="false"
+            app:xyzTitle="@string/has_been_in_park"
+            app:xyzTitleColor="@color/tab_default_text_color"
+            app:xyzTitleSelectColor="@color/main_blue"
+            app:xyzTitleSize="@dimen/sp10"
+            app:xyzTitleTop="@dimen/dp4"/>
+
+        <com.cwgj.lib.views.BottomTabItemWithCircle
+            android:id="@+id/tab_self"
+            style="@style/bottomitem"
+            app:xyzIcon="@drawable/tab_fee_self"
+            app:xyzIconHeight="@dimen/dp22"
+            app:xyzIconWidth="@dimen/dp22"
+            app:xyzSelectIcon="@drawable/tab_fee_self_press"
+            app:xyzSelectState="false"
+            app:xyzTitle="@string/self"
+            app:xyzTitleColor="@color/tab_default_text_color"
+            app:xyzTitleSelectColor="@color/main_blue"
+            app:xyzTitleSize="@dimen/sp10"
+            app:xyzCircleVisitble="true"
+            app:xyzTitleTop="@dimen/dp4"/>
+
+
+    </LinearLayout>
+
+</LinearLayout>

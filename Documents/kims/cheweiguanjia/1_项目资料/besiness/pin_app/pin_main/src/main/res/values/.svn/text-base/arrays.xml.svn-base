@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 首页导航 -->
+    <string-array name="bottom_bar_labels">
+        <item>"首页"</item>
+        <!--<item>"出入场记录"</item>-->
+        <item>"更多"</item>
+    </string-array>
+    <string-array name="bottom_bar_icons">
+        <item>@drawable/fee_main_home_home_unseleted</item>
+        <!--<item>@drawable/fee_main_home_out_in_park_unselect</item>-->
+        <item>@drawable/fee_main_home_setting_unseleted</item>
+    </string-array>
+
+    <string-array name="qq_normal_icon">
+        <item>@drawable/skin_tab_icon_conversation_normal</item>
+        <item>@drawable/skin_tab_icon_contact_normal</item>
+        <item>@drawable/skin_tab_icon_plugin_normal</item>
+    </string-array>
+
+    <string-array name="qq_selected_icon">
+        <item>@drawable/skin_tab_icon_conversation_selected</item>
+        <item>@drawable/skin_tab_icon_contact_selected</item>
+        <item>@drawable/skin_tab_icon_plugin_selected</item>
+    </string-array>
+
+</resources>
